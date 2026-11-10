@@ -10,175 +10,6 @@ Estructura:
   En cada pregunta, "correcta" es la posición (0, 1, 2...) de la opción correcta.
 """
 
-PUESTOS = {
-    "Ayudante de reparto": "ayudante",
-    "Chofer de reparto": "chofer",
-    "Operario de almacén": "operario",
-    "Montacarguista": "montacarguista",
-    "Gestor de ventas": "gestor",
-    "Otro puesto": None,
-}
-
-IMAGENES_PUESTO = {
-    "ayudante": "ayudante.png",
-    "chofer": "chofer.jpg",
-    "operario": "operario.png",
-    "montacarguista": "montacarguista.jpg",
-    "gestor": "gestor.png",
-}
-
-FUNCIONES = {
-    "ayudante": [
-        "Entregar pedido al cliente.",
-        "Recibir pago del cliente.",
-        "Entregar al cliente comprobante de pago.",
-        "Recargar unidad para volver a salir al mercado.",
-        "Brindar una buena atención y trato amable al cliente.",
-        "Devolver producto fuera de norma.",
-        "Verificar integridad de la unidad de reparto.",
-        "Devolver carga sobrante.",
-    ],
-    "chofer": [
-        "Transportar los productos distribuidos por el CDA, en buenas condiciones.",
-        "Cumplir con el reparto a los clientes asignados a su ruta.",
-        "Informar los rechazos de mercado con el Jefe de Distribución.",
-        "Verificar que la atención a nuestros clientes sea cortés y oportuna, evitando quejas.",
-        "Resguardo de activos fijos de la empresa (vehículos).",
-        "Verificar las buenas prácticas de los Auxiliares de Reparto para asegurar la integridad de la unidad de reparto.",
-    ],
-    "operario": [
-        "Armado de cajas.",
-        "Limpieza de almacén.",
-        "Ordenamiento del producto y envase.",
-        "Aseo de envase.",
-        "Encargado de clasear el envase.",
-        "Armado de carga y recargas.",
-        "Ejecutar eficientemente y de manera responsable actividades de recepción y almacenamiento de producto y envase, manteniendo estándares de calidad y buenas prácticas.",
-    ],
-    "montacarguista": [
-        "Al iniciar su turno, revisar el estado de los montacargas (niveles de aceite, niveles de agua, hidrolina).",
-        "Ordenar el almacén respetando la regla FEFO: despacho del más cercano a su fecha de vencimiento.",
-        "Ordenar los pallets en la zona de envases, plataformas y plásticos.",
-        "Realizar la carga y descarga de unidades trailer en forma segura y eficiente.",
-    ],
-    "gestor": [
-        "Localizar a clientes potenciales en la ruta asignada.",
-        "Visitar a los clientes potenciales identificados por otros miembros del equipo de ventas.",
-        "Comunicar promociones y lanzamientos al cliente.",
-        "Impulsar la venta (objetivo de volumen y cobertura).",
-        "Entablar un diálogo de valor acorde al cliente.",
-        "Revisar status del producto y equipos.",
-        "Comunicar beneficios de rotación de producto vs. competencia.",
-        "Comunicar ventajas de preferencia de marca.",
-    ],
-}
-
-# Preguntas del nivel "Tu puesto" según el puesto elegido.
-PREGUNTAS_PUESTO = {
-    "ayudante": [
-        {
-            "id": "P-AYU-1",
-            "texto": "Además de entregar el pedido y recibir el pago, ¿qué debes entregar al cliente?",
-            "opciones": ["Una muestra gratis", "El comprobante de pago", "Tu número personal", "Un catálogo"],
-            "correcta": 1,
-            "explicacion": "El ayudante de reparto entrega al cliente el comprobante de pago.",
-        },
-        {
-            "id": "P-AYU-2",
-            "texto": "¿Qué haces con el producto fuera de norma?",
-            "opciones": ["Lo dejas con el cliente", "Lo devuelves", "Lo vendes más barato", "Lo botas"],
-            "correcta": 1,
-            "explicacion": "Entre tus funciones está devolver el producto fuera de norma.",
-        },
-    ],
-    "chofer": [
-        {
-            "id": "P-CHO-1",
-            "texto": "Si hay rechazos de mercado, ¿con quién los informas?",
-            "opciones": ["Con el Jefe de Distribución", "Con el cliente", "Con otro chofer", "No se informan"],
-            "correcta": 0,
-            "explicacion": "El chofer informa los rechazos de mercado con el Jefe de Distribución.",
-        },
-        {
-            "id": "P-CHO-2",
-            "texto": "¿Qué activo fijo de la empresa debes resguardar como chofer?",
-            "opciones": ["Las oficinas", "Los vehículos", "Los envases vacíos", "Los uniformes"],
-            "correcta": 1,
-            "explicacion": "El chofer es responsable del resguardo de los activos fijos, como los vehículos.",
-        },
-    ],
-    "operario": [
-        {
-            "id": "P-OPE-1",
-            "texto": "¿Cuál de estas tareas corresponde al operario de almacén?",
-            "opciones": ["Visitar clientes potenciales", "Clasear el envase", "Conducir la unidad de reparto", "Cobrar al cliente"],
-            "correcta": 1,
-            "explicacion": "El operario de almacén es el encargado de clasear el envase.",
-        },
-        {
-            "id": "P-OPE-2",
-            "texto": "En el almacén, la recepción y el almacenamiento de producto y envase se hacen manteniendo…",
-            "opciones": ["La mayor velocidad posible", "Estándares de calidad y buenas prácticas", "El menor orden posible", "Lo que indique el cliente"],
-            "correcta": 1,
-            "explicacion": "Se ejecutan de manera eficiente y responsable, con estándares de calidad y buenas prácticas.",
-        },
-    ],
-    "montacarguista": [
-        {
-            "id": "P-MON-1",
-            "texto": "¿Qué debes revisar al iniciar tu turno?",
-            "opciones": [
-                "El estado de los montacargas (aceite, agua, hidrolina)",
-                "Las ventas del día",
-                "El horario de tus compañeros",
-                "Las rutas de reparto",
-            ],
-            "correcta": 0,
-            "explicacion": "Al iniciar el turno se revisa el estado de los montacargas: niveles de aceite, agua e hidrolina.",
-        },
-        {
-            "id": "P-MON-2",
-            "texto": "La regla FEFO significa despachar primero el producto…",
-            "opciones": ["Más nuevo", "Más pesado", "Más cercano a su fecha de vencimiento", "Más caro"],
-            "correcta": 2,
-            "explicacion": "FEFO: se despacha el más cercano a su fecha de vencimiento.",
-        },
-    ],
-    "gestor": [
-        {
-            "id": "P-GES-1",
-            "texto": "¿Qué objetivos busca impulsar el gestor de ventas?",
-            "opciones": ["Solo el horario", "Volumen y cobertura", "Solo el orden del almacén", "El número de reclamos"],
-            "correcta": 1,
-            "explicacion": "El gestor impulsa la venta con objetivo de volumen y cobertura.",
-        },
-        {
-            "id": "P-GES-2",
-            "texto": "Al visitar a un cliente, ¿qué debes comunicarle?",
-            "opciones": ["Promociones y lanzamientos", "Tus problemas personales", "El sueldo de tus compañeros", "Nada, solo cobrar"],
-            "correcta": 0,
-            "explicacion": "El gestor comunica promociones y lanzamientos al cliente.",
-        },
-    ],
-    # Para quienes eligen "Otro puesto": repaso de los puestos operativos de PMA.
-    "otro": [
-        {
-            "id": "P-OTR-1",
-            "texto": "La regla FEFO que aplica el montacarguista consiste en despachar primero lo más…",
-            "opciones": ["Nuevo", "Cercano a su fecha de vencimiento", "Pesado", "Barato"],
-            "correcta": 1,
-            "explicacion": "FEFO: despacho del producto más cercano a su fecha de vencimiento.",
-        },
-        {
-            "id": "P-OTR-2",
-            "texto": "¿Con quién informa el chofer los rechazos de mercado?",
-            "opciones": ["Con el cliente", "Con el Jefe de Distribución", "Con el operario de almacén", "No los informa"],
-            "correcta": 1,
-            "explicacion": "El chofer informa los rechazos de mercado con el Jefe de Distribución.",
-        },
-    ],
-}
-
 NIVELES = [
     # ------------------------------------------------------------------ NIVEL 1
     {
@@ -601,7 +432,7 @@ NIVELES = [
                 "titulo": "Proceso sancionador",
                 "icono": "🚦",
                 "puntos": [
-                    "Artículo 96º: la Distribuidora establece cuatro tipos de sanciones.",
+                    "Artículo 71° del Reglamento Interno de Trabajo (RIT 2026): la Distribuidora establece cuatro tipos de medidas disciplinarias.",
                     "1. Amonestación verbal.",
                     "2. Amonestación escrita.",
                     "3. Suspensión de labores sin goce de haber.",
@@ -629,7 +460,7 @@ NIVELES = [
         "preguntas": [
             {
                 "id": "N5-1",
-                "texto": "¿Cuál de estas NO es una de las cuatro sanciones del artículo 96º?",
+                "texto": "¿Cuál de estas NO es una de las cuatro sanciones del artículo 71° del RIT?",
                 "opciones": [
                     "Amonestación verbal",
                     "Descuento del 50% del sueldo",

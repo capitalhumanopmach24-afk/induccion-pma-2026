@@ -18,7 +18,12 @@ import streamlit.components.v1 as components
 from bloques import BLOQUES, COMITE
 from examen_puesto import areas, generar_examen, get_puesto, puestos_de
 import asistente
-import conocimiento
+try:
+    import conocimiento
+except ImportError:  # si tu repositorio no tiene conocimiento.py, se usa el buscador incluido (lee conocimiento.json)
+    import buscador as conocimiento
+
+    conocimiento.cargar = conocimiento.BaseLocal
 import presentador
 import registro_preguntas
 import voz_ia
