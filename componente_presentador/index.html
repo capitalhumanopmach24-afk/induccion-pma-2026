@@ -32,8 +32,7 @@ button.p{background:#C8102E;color:#fff;border-color:#C8102E}button:disabled{opac
    <div>Cada tarjeta se explica en voz alta y avanza sola. Puedes pausar, retroceder o hacer una pregunta cuando quieras.</div>
    <button class="p" id="go">▶️ Iniciar presentación</button></div></div>
  <div class="row"><button id="ant">⬅️ Anterior</button><button id="pp" class="p">⏸ Pausar</button><button id="sig">Siguiente ➡️</button></div>
- <div class="row"><button id="rei">🔁 Reiniciar</button>
-  <select id="vel" aria-label="Velocidad de la voz"><option value="0.9">Voz lenta</option><option value="1" selected>Voz normal</option><option value="1.15">Voz rápida</option></select></div>
+ <div class="row"><button id="rei">🔁 Reiniciar</button></div>
  <div id="q"><b>💬 ¿Tienes una duda? Pregúntale a PMA</b>
   <div class="f"><input id="qi" maxlength="300" placeholder="Ej.: ¿Cuántos días tengo para justificar una falta?">
   <button id="mic" aria-label="Hablar">🎤</button><button class="p" id="qb">Preguntar</button></div>
@@ -42,7 +41,8 @@ button.p{background:#C8102E;color:#fff;border-color:#C8102E}button:disabled{opac
 </div>
 <audio id="au"></audio>
 <script>
-let S=null,sigS='',i=0,play=false,tok=0,tm=null,tm2=null,ultResp=null,pend=false,habil=true;
+const VEL=1.15; // una sola velocidad: voz rápida
+let S=null,finEnv=false,sigS='',i=0,play=false,tok=0,tm=null,tm2=null,ultResp=null,pend=false,habil=true;
 const $=id=>document.getElementById(id),au=$('au');
 function env(type,d){parent.postMessage(Object.assign({isStreamlitMessage:true,type:type},d||{}),'*')}
 function altura(){env('streamlit:setFrameHeight',{height:document.documentElement.scrollHeight+12})}
@@ -52,7 +52,9 @@ function render(){const s=S[i];let h=`<h3>${s.icono} ${s.titulo}</h3>`;
  if(s.img)h+=`<img id="img" src="${s.img}">`;
  if(s.fotos.length)h+='<div class="fotos">'+s.fotos.map(f=>`<div><img src="${f.src}"><b>${f.n}</b><span>${f.c}</span></div>`).join('')+'</div>';
  $('cont').innerHTML=h;$('bh').textContent=s.bloque;$('bl').textContent=`Bloque ${s.bn} de ${s.bt}`;$('cap').textContent=`Tarjeta ${s.cn} de ${s.ct}`;
- $('n').textContent=`${i+1} / ${S.length}`;$('pg').style.width=((i+1)/S.length*100)+'%';
+ $('n').textContent=`${i+1} / ${S.length}`;
+ if(i==S.length-1){$('cap').textContent+=' · ¡última! Después haz la prueba del bloque';if(!finEnv){finEnv=true;valor({id:'fin-'+Date.now(),fin:true})}}
+$('pg').style.width=((i+1)/S.length*100)+'%';
  $('ant').disabled=i==0;$('sig').disabled=i==S.length-1;$('pp').textContent=play?'⏸ Pausar':'▶️ Continuar';setTimeout(altura,60)}
 function parar(){tok++;clearTimeout(tm);clearTimeout(tm2);au.pause();au.onended=null;try{speechSynthesis.cancel()}catch(e){}}
 function puntaje(v){const n=(v.name||'').toLowerCase(),l=(v.lang||'').replace('_','-').toLowerCase();if(!l.startsWith('es'))return -1;let q=0;
@@ -61,7 +63,7 @@ function puntaje(v){const n=(v.name||'').toLowerCase(),l=(v.lang||'').replace('_
 function mejorVoz(vs){let b=null,bp=-1;for(const v of vs){const x=puntaje(v);if(x>bp){bp=x;b=v}}return bp>=0?b:null}
 function cargarVoces(){return new Promise(res=>{const v=speechSynthesis.getVoices();if(v.length)return res(v);let ok=false;
  const f=()=>{if(!ok){ok=true;res(speechSynthesis.getVoices())}};speechSynthesis.addEventListener('voiceschanged',f,{once:true});setTimeout(f,1500)})}
-async function hablar(audio,texto,alTerminar){parar();const t=++tok,vel=parseFloat($('vel').value);
+async function hablar(audio,texto,alTerminar){parar();const t=++tok,vel=VEL;
  const fin=()=>{if(t!=tok)return;clearTimeout(tm);clearTimeout(tm2);tm2=setTimeout(()=>{if(t==tok)alTerminar()},1500)};
  const seguro=ms=>{clearTimeout(tm);tm=setTimeout(fin,ms)};const estim=Math.max(6000,texto.length*75/vel);
  if(audio){au.src=audio;au.playbackRate=vel;au.onended=fin;au.play().catch(()=>seguro(6000));seguro(120000);return}
@@ -76,7 +78,7 @@ function ir(n){i=Math.max(0,Math.min(S.length-1,n));$('r').style.display='none';
 $('go').onclick=()=>{$('ini').style.display='none';play=true;render();narrar()};
 $('pp').onclick=()=>{if(!play&&$('pp').textContent.startsWith('✅')){i=0;render()}play=!play;render();play?narrar():parar()};
 $('ant').onclick=()=>ir(i-1);$('sig').onclick=()=>ir(i+1);
-$('rei').onclick=()=>{play=true;$('ini').style.display='none';ir(0)};$('vel').onchange=()=>{if(play)narrar()};
+$('rei').onclick=()=>{play=true;$('ini').style.display='none';ir(0)};
 function preguntar(){const q=$('qi').value.trim();if(q.length<4||pend||!habil)return;
  parar();play=false;render();pend=true;$('qb').disabled=true;$('seg').style.display='none';
  $('r').style.display='block';$('r').textContent='Pensando…';setTimeout(altura,60);
@@ -92,7 +94,7 @@ if(SR){$('mic').onclick=()=>{parar();const r=new SR();r.lang='es-PE';r.onresult=
 document.onkeydown=e=>{if(!S)return;if(e.key=='ArrowLeft')ir(i-1);if(e.key=='ArrowRight')ir(i+1);if(e.key==' '){e.preventDefault();$('pp').click()}};
 window.addEventListener('message',e=>{const d=e.data;if(!d||d.type!=='streamlit:render')return;const a=d.args||{};
  const sg=(a.slides||[]).map(x=>x.titulo).join('|');
- if(a.slides&&sg!==sigS){sigS=sg;S=a.slides;i=0;play=false;render()}
+ if(a.slides&&sg!==sigS){sigS=sg;S=a.slides;i=0;play=false;finEnv=false;render()}
  habil=!!a.preguntas;$('q').style.display=a.preguntas?'block':'none';
  if(a.respuesta&&a.respuesta.id!==ultResp){ultResp=a.respuesta.id;mostrar(a.respuesta)}setTimeout(altura,60)});
 env('streamlit:componentReady',{apiVersion:1});

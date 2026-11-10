@@ -103,7 +103,7 @@ def armar_diapositivas(puesto, sede_horario=False, sede_comite=False, bloques=No
 
 
 def mostrar_presentacion(puesto, procesar, sede_horario=False, sede_comite=False, bloques=None, preguntas=True):
-    """Dibuja el reproductor. `procesar(pregunta, bloque, diapositiva)` es la función de app.py que consulta a Gemini,
+    """Dibuja el reproductor y devuelve True cuando la persona llegó a la última tarjeta. `procesar(pregunta, bloque, diapositiva)` es la función de app.py que consulta a Gemini,
     aplica los límites, genera la voz natural y guarda la pregunta en la hoja de Google; devuelve el dict de respuesta."""
     diapos = armar_diapositivas(puesto, sede_horario, sede_comite, bloques)
     ss = st.session_state
@@ -111,8 +111,11 @@ def mostrar_presentacion(puesto, procesar, sede_horario=False, sede_comite=False
     valor = _componente(slides=diapos, preguntas=bool(preguntas), respuesta=ss.get("pres_resp"), key="presentador", default=None)
     if valor and valor.get("id") != ss.pres_ultima:
         ss.pres_ultima = valor["id"]
+        if valor.get("fin"):  # el reproductor llegó a la última tarjeta: se activa el botón de la prueba
+            ss["pres_fin"] = True
+            st.rerun()
         res = procesar(valor.get("pregunta", ""), valor.get("bloque", ""), valor.get("diapositiva", ""))
         res = dict(res, id=valor["id"], texto=re.sub(r"\*\*(.+?)\*\*", r"\1", res["texto"]))
         ss["pres_resp"] = res
         st.rerun()
-    return len(diapos)
+    return bool(ss.get("pres_fin"))

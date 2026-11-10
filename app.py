@@ -349,6 +349,7 @@ def abrir_bloque(i):
 
 def volver_mapa():
     ss.etapa = "mapa"
+    ss.guiado = False
 
 
 def card_siguiente():
@@ -463,8 +464,9 @@ def vista_mapa():
     with c2:
         st.markdown(f'<div class="puntos">⭐ {total_puntos()} pts</div>', unsafe_allow_html=True)
 
-    st.button("🎬 Ver la presentación guiada (con voz)", key="pres_mapa", on_click=iniciar_presentacion, args=(None,))
     siguiente = next((i for i in range(len(BLOQUES)) if not ss.aprobados.get(i)), None)
+    if siguiente is not None:
+        st.button(f"🎬 Presentación guiada del bloque {siguiente + 1} (con voz y prueba)", key="pres_mapa", on_click=iniciar_presentacion, args=([siguiente],))
     for i, b in enumerate(BLOQUES):
         n = f"{i + 1}. {b['titulo']}"
         if ss.aprobados.get(i):
@@ -780,7 +782,7 @@ def vista_tarjetas():
         else:
             etiqueta = "📝 Ir a mi examen" if ss.bloque == IDX_PUESTO else "🎮 ¡A la prueba!"
             st.button(etiqueta, type="primary", on_click=ir_a_preguntas)
-    st.button("🎬 Ver este bloque en presentación guiada", key="pres_bloque", on_click=iniciar_presentacion, args=([ss.bloque],))
+    st.button("🎬 Ver este bloque en presentación guiada (con voz)", key="pres_bloque", on_click=iniciar_presentacion, args=([ss.bloque],))
     if not ss.repaso:
         st.button("🗺️ Salir al mapa", key="salir_mapa", on_click=volver_mapa)
 
@@ -827,10 +829,12 @@ def vista_resumen():
         if todos:
             st.button("🏆 Ver mi resultado final", type="primary", on_click=ver_final)
         else:
-            st.button("🗺️ Volver al mapa", type="primary", on_click=volver_mapa)
+            if ss.get("guiado"):
+                st.button("▶️ Siguiente bloque con presentación guiada", type="primary", on_click=siguiente_guiado)
+            st.button("🗺️ Volver al mapa", type="secondary" if ss.get("guiado") else "primary", on_click=volver_mapa)
     else:
         st.warning("Necesitas al menos 70% para pasar este bloque. Repasa las tarjetas y vuelve a intentarlo.")
-        st.button("🔁 Repasar y repetir", type="primary", on_click=repetir_bloque)
+        st.button("🔁 Repasar y repetir", type="primary", on_click=repetir_guiado if ss.get("guiado") else repetir_bloque)
 
 
 def vista_final():
@@ -863,24 +867,54 @@ def vista_final():
 
 
 def iniciar_presentacion(bloques):
-    ss.pres_bloques = bloques  # None = todos los bloques
+    ss.pres_bloques = bloques  # lista con UN bloque: la presentación es bloque por bloque
     ss.pres_resp = None
     ss.pres_ultima = None
+    ss.pres_fin = False
     ss.etapa = "presentacion"
+    ss.guiado = True
+
+
+def prueba_guiada(i):
+    """Termina la presentación del bloque y abre su prueba (con puntos), igual que «¡A la prueba!»."""
+    abrir_bloque(i)
+    ir_a_preguntas()
+    ss.guiado = True
+
+
+def siguiente_guiado():
+    sig = next((i for i in range(len(BLOQUES)) if not ss.aprobados.get(i)), None)
+    if sig is None:
+        volver_mapa()
+    else:
+        iniciar_presentacion([sig])
+
+
+def repetir_guiado():
+    repetir_bloque()
+    iniciar_presentacion([ss.bloque])
 
 
 def vista_presentacion():
     cabecera()
+    i = (ss.get("pres_bloques") or [0])[0]
     st.markdown("## 🎬 Presentación guiada")
-    st.caption(f"Puesto: {ss.puesto} · Sede: {ss.sede}. Ver la presentación no suma puntos: los puntos se ganan en la prueba de cada bloque.")
-    presentador.mostrar_presentacion(
+    st.caption(f"Puesto: {ss.puesto} · Sede: {ss.sede}. Al terminar el bloque haces su prueba para ganar puntos.")
+    terminado = presentador.mostrar_presentacion(
         puesto_actual(), procesar_pregunta,
         sede_horario=ss.sede in SEDES_HORARIO_2026, sede_comite=ss.sede in SEDES_COMITE,
-        bloques=ss.get("pres_bloques"), preguntas=asistente_activo(),
+        bloques=[i], preguntas=asistente_activo(),
     )
     if not asistente_activo():
         st.caption("El asistente todavía no está activado: por ahora no se pueden hacer preguntas.")
-    st.button("🗺️ Volver al mapa", key="pres_salir", on_click=volver_mapa)
+    if ss.aprobados.get(i):  # repaso de un bloque ya aprobado: sin prueba, como en las tarjetas
+        st.button("🗺️ Volver al mapa", key="pres_mapa_fin", type="primary", on_click=volver_mapa)
+    else:
+        etiqueta = "📝 Ir a mi examen" if i == IDX_PUESTO else "🎮 ¡A la prueba!"
+        st.button(etiqueta, key="pres_prueba", type="primary", on_click=prueba_guiada, args=(i,), disabled=not terminado)
+        if not terminado:
+            st.caption("Cuando llegues a la última tarjeta se activa el botón de la prueba.")
+        st.button("🗺️ Salir al mapa", key="pres_salir", on_click=volver_mapa)
 
 
 # --------------------------------------------------------------------------- panel RR.HH.
