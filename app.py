@@ -13,11 +13,20 @@ from datetime import datetime
 from pathlib import Path
 
 import streamlit as st
+import streamlit.components.v1 as components
 
 from bloques import BLOQUES, COMITE
 from examen_puesto import areas, generar_examen, get_puesto, puestos_de
+import asistente
+import conocimiento
+import presentador
+import registro_preguntas
+import voz_ia
 from envio import CAMPOS_FORM, enviar_apps_script, enviar_formulario, parsear_enlace_form, probar_conexion
 from horarios import grupos_de, tabla_md
+from organigrama import NODOS, TITULO as TITULO_ORG, jefes_de, subordinados_de
+from voz import (MARCACION, clave_ficha, clave_generica, clave_marcacion, con_hash, limpiar, ruta_audio,
+                 texto_comite, texto_ficha, texto_horario, texto_marcacion, texto_tarjeta)
 
 BASE = Path(__file__).parent
 SLIDES = BASE / "assets" / "slides"
@@ -30,7 +39,6 @@ ARCH_RESPUESTAS = DATA / "respuestas.csv"
 
 IDX_PUESTO = 5  # bloque 6: ficha y examen del puesto
 IDX_MARCACION = 2  # bloque 3: lleva una pregunta que depende del puesto
-IDX_COMITE = 6  # bloque 7: incluye al Sub Comité de Hostigamiento Sexual
 
 SEDES = ["Chimbote", "Trujillo", "Chocope", "Guadalupe"]  # sedes oficiales
 # Sedes para las que existe información propia. Si agregas el cuadro de horarios o el comité
@@ -73,8 +81,9 @@ def puesto_actual():
 
 
 def preguntas_marcacion():
-    """Pregunta sobre marcación según el puesto (solo entrada o entrada y salida)."""
-    if puesto_actual()["no_fiscaliza"]:
+    """Pregunta sobre marcación según el puesto. Si no se sabe cómo marca el puesto, no se pregunta."""
+    modo = puesto_actual().get("marcacion")
+    if modo == "entrada":
         return {
             "id": "B3-M",
             "texto": "¿Cuántas veces marcas asistencia al día en tu puesto?",
@@ -82,13 +91,15 @@ def preguntas_marcacion():
             "correcta": 1,
             "explicacion": "Tu puesto no está sujeto a fiscalización horaria: marcas una sola vez, tu entrada.",
         }
-    return {
-        "id": "B3-M",
-        "texto": "En tu puesto, ¿qué debes registrar en la marcación de asistencia?",
-        "opciones": ["Solo mi entrada", "Mi ingreso y mi salida", "Solo mi salida", "Nada, no es obligatorio"],
-        "correcta": 1,
-        "explicacion": "Debes registrar tu ingreso y tu salida del centro de trabajo. Si no registras tu asistencia, se considera una falta pasible de descuento.",
-    }
+    if modo == "entrada_salida":
+        return {
+            "id": "B3-M",
+            "texto": "En tu puesto, ¿qué debes registrar en la marcación de asistencia?",
+            "opciones": ["Solo mi entrada", "Mi ingreso y mi salida", "Solo mi salida", "Nada, no es obligatorio"],
+            "correcta": 1,
+            "explicacion": "Debes registrar tu ingreso y tu salida del centro de trabajo. Si no registras tu asistencia, se considera una falta pasible de descuento.",
+        }
+    return None
 
 
 def preguntas_de(i):
@@ -96,9 +107,9 @@ def preguntas_de(i):
         return ss.examen
     qs = list(BLOQUES[i]["preguntas"])
     if i == IDX_MARCACION:
-        qs.insert(4, preguntas_marcacion())
-    if i == IDX_COMITE and ss.get("sede") not in SEDES_COMITE:
-        qs = [q for q in qs if q["id"] not in ("B7-4", "B7-5")]
+        qm = preguntas_marcacion()
+        if qm:
+            qs.insert(4, qm)
     return qs
 
 
@@ -128,6 +139,81 @@ def _secreto(nombre):
         except Exception:
             valor = ""
     return valor
+
+
+MAX_PREGUNTAS_SESION = 8
+ESPERA_ENTRE_PREGUNTAS = 4  # segundos
+
+
+@st.cache_resource(show_spinner=False)
+def _base_conocimiento():
+    return conocimiento.cargar()
+
+
+def asistente_activo():
+    return bool(_secreto("GEMINI_API_KEY"))
+
+
+def _consultar(pregunta, puesto, sede):
+    return asistente.preguntar(
+        pregunta, puesto, sede, _base_conocimiento(), _secreto("GEMINI_API_KEY"),
+        modelo=_secreto("GEMINI_MODELO") or None,
+        url_base=_secreto("GEMINI_URL_BASE") or asistente.URL_GEMINI,
+        tope_dia=int(_secreto("PREGUNTAS_POR_DIA") or 300),
+    )
+
+
+def procesar_pregunta(q, bloque="", diapositiva=""):
+    """Consulta a Gemini (con los mismos límites), agrega voz natural y guarda pregunta y respuesta en la hoja de Google."""
+    ahora = datetime.now().timestamp()
+    if ss.n_preguntas >= MAX_PREGUNTAS_SESION:
+        return {"tipo": "limite", "texto": "Llegaste al máximo de preguntas de esta sesión. Si te quedan dudas, consúltalas con Capital Humano.", "fuentes": []}
+    if ahora - ss.get("ultima_pregunta", 0) < ESPERA_ENTRE_PREGUNTAS:
+        return {"tipo": "error", "texto": "Espera unos segundos antes de hacer otra pregunta.", "fuentes": []}
+    ss.ultima_pregunta = ahora
+    r = _consultar(q, ss.puesto, ss.sede)
+    if r["tipo"] in ("ia", "fija"):
+        ss.n_preguntas += 1
+        try:
+            if _secreto("VOZ_RESPUESTAS").lower() != "no":
+                r["audio"] = voz_ia.sintetizar(r["texto"], _secreto("GEMINI_API_KEY"))  # voz natural; si falla, voz del dispositivo
+            r["hablado"] = voz_ia.texto_hablado(r["texto"])
+            registro_preguntas.guardar(_secreto("HOJA_URL"), _secreto("HOJA_TOKEN"), ss.sede, ss.puesto, bloque, diapositiva,
+                                       asistente.limpiar_pregunta(q), r)
+        except Exception:  # noqa: BLE001  (el asistente no debe caerse por la voz o por la hoja)
+            pass
+    return r
+
+
+def preguntar_cb():
+    q = (ss.get("q_asistente") or "").strip()
+    if not q:
+        return
+    ss.resp_asistente = procesar_pregunta(q, "Mapa", "")
+
+
+def seccion_asistente():
+    with st.expander("💬 ¿Tienes una duda? Pregúntale a PMA"):
+        if not asistente_activo():
+            st.caption("El asistente todavía no está activado.")
+            return
+        st.caption(
+            "Responde con el Reglamento Interno de Trabajo, el reglamento de Seguridad y Salud, tu ficha de puesto y tu horario. "
+            "**No escribas datos personales ni cuentes casos personales:** esta herramienta no es confidencial. "
+            "Las respuestas son orientativas; ante cualquier duda consulta con Capital Humano."
+        )
+        q = st.text_input("Escribe tu pregunta", key="q_asistente", max_chars=asistente.MAX_PREGUNTA,
+                          placeholder="Ej.: ¿Cuántos días tengo para justificar una falta?")
+        st.button("Preguntar", key="btn_preguntar", on_click=preguntar_cb, disabled=not (q or "").strip())
+        r = ss.get("resp_asistente")
+        if r:
+            if r["tipo"] == "error" or r["tipo"] == "limite":
+                st.warning(r["texto"])
+            else:
+                st.markdown(r["texto"])
+                if r["fuentes"]:
+                    st.caption("Basado en: " + " · ".join(r["fuentes"]))
+                escuchar(None, r["texto"], r.get("audio"))
 
 
 def enviar_resultados():
@@ -217,6 +303,7 @@ def iniciar_estado():
     ss.setdefault("log_respuestas", [])
     ss.setdefault("envio", None)
     ss.setdefault("envio_detalle", "")
+    ss.setdefault("n_preguntas", 0)
     ss.setdefault("valores_form", [])
 
 
@@ -371,6 +458,7 @@ def vista_mapa():
     with c2:
         st.markdown(f'<div class="puntos">⭐ {total_puntos()} pts</div>', unsafe_allow_html=True)
 
+    st.button("🎬 Ver la presentación guiada (con voz)", key="pres_mapa", on_click=iniciar_presentacion, args=(None,))
     siguiente = next((i for i in range(len(BLOQUES)) if not ss.aprobados.get(i)), None)
     for i, b in enumerate(BLOQUES):
         n = f"{i + 1}. {b['titulo']}"
@@ -387,6 +475,7 @@ def vista_mapa():
         st.button("🏆 Ver mi resultado final", type="primary", on_click=ver_final)
     else:
         st.caption("Los bloques completados se pueden repasar cuando quieras.")
+    seccion_asistente()
 
 
 def barra_bloque():
@@ -404,17 +493,37 @@ def barra_bloque():
 def card_marcacion():
     p = puesto_actual()
     st.markdown("### 🖐️ Marcación de asistencia")
-    if p["no_fiscaliza"]:
-        st.markdown("- Tu puesto no está sujeto a fiscalización horaria: **marcas una sola vez, tu entrada**.")
-    else:
-        st.markdown(
-            "- Debes registrar tu **ingreso y salida** del centro de trabajo. "
-            "Si no registras tu asistencia, se considera una falta pasible de descuento."
-        )
-    st.markdown(
-        "- La marcación es personal: marcar, modificar o suplantar a otro trabajador es una **falta grave**.\n"
-        "- Si hay algún problema con la marcación, avisa de inmediato a Recursos Humanos, en un plazo de **24 horas**."
+    for linea in MARCACION[p.get("marcacion")]:
+        st.markdown(f"- {linea}")
+
+
+def _linea_mando(nombre):
+    jefes = jefes_de(nombre)
+    if jefes:
+        st.markdown("⬆️ **Reporta a:** " + " → ".join(jefes))
+    subs = subordinados_de(nombre)
+    if subs:
+        st.markdown("⬇️ **Le reportan:** " + ", ".join(subs))
+    if not subs:
+        st.markdown("⬇️ **Le reportan:** nadie (puesto operativo)")
+
+
+def card_organigrama(t):
+    st.markdown(f"### {t['icono']} {t['titulo']}")
+    for pto in t["puntos"]:
+        st.markdown(f"- {pto}")
+    mostrar_imagen(t["imagen"])
+    st.caption(TITULO_ORG + ". Si trabajas en otra sede, puede haber diferencias.")
+    p = puesto_actual()
+    st.markdown("**Tu línea de mando**")
+    _linea_mando(p["nombre"])
+    cargos = [n for n, d in NODOS.items() if d["tipo"] == "cargo"]
+    elegido = st.selectbox(
+        "Ver la línea de mando de otro puesto", cargos,
+        index=cargos.index(p["nombre"]) if p["nombre"] in cargos else 0, key="org_ver",
     )
+    if elegido != p["nombre"]:
+        _linea_mando(elegido)
 
 
 def card_comite(t):
@@ -438,15 +547,18 @@ def _lista(items):
 
 
 def render_horario(p):
-    """Horario del puesto según el cuadro 2026; si no está en el cuadro, el del MOF con aviso."""
+    """Horario del puesto según el cuadro 2026; si no está en el cuadro, el del MOF (con aviso) o una indicación."""
     usa_cuadro = ss.get("sede") in SEDES_HORARIO_2026
     gs = grupos_de(p["nombre"]) if usa_cuadro else []
     if not gs:
-        if usa_cuadro:
-            st.caption("Tu horario exacto no está en el cuadro de horarios 2026. Lo siguiente viene del MOF: confirma el tuyo con Capital Humano.")
-        else:
-            st.caption("El cuadro de horarios 2026 es de la sede Chimbote. Lo siguiente viene del MOF: confirma tu horario con Capital Humano de tu sede.")
-        _lista(p["horario"])
+        if not usa_cuadro:
+            st.caption("El cuadro de horarios 2026 es de la sede Chimbote. Confirma tu horario con Capital Humano de tu sede.")
+        if p["horario"] and not p.get("provisional_creada"):
+            if usa_cuadro:
+                st.caption("Tu horario exacto no está en el cuadro de horarios 2026. Lo siguiente viene del MOF: confirma el tuyo con Capital Humano.")
+            _lista(p["horario"])
+        elif usa_cuadro:
+            st.info("Tu horario aún no está registrado en el cuadro de horarios. Consúltalo con tu jefe o con Capital Humano.")
     for g in gs:
         if len(gs) > 1:
             st.markdown(f"**{g['titulo']}**")
@@ -459,8 +571,9 @@ def render_horario(p):
             st.info(g["nota"])
     if p["descanso"] and all(g.get("descanso_q", True) for g in gs):
         st.markdown(f"**Periodo de descanso:** {p['descanso']}")
-    if not gs or all(g["fiscalizado"] for g in gs):
-        if p["no_fiscaliza"]:
+    modo = p.get("marcacion")
+    if modo and (not gs or all(g["fiscalizado"] for g in gs)):
+        if modo == "entrada":
             st.info("Tu puesto no está sujeto a fiscalización horaria: marcas una sola vez, tu entrada.")
         else:
             st.info("Debes registrar tu ingreso y tu salida en la marcación de asistencia.")
@@ -474,12 +587,17 @@ def card_horario():
 def card_ficha():
     p = puesto_actual()
     st.markdown(f"### 🪪 {p['nombre']}")
-    st.caption(f"Área: {p['area']} · Información del Manual de Organización y Funciones (MOF)")
+    origen = "" if p.get("provisional_creada") else " · Información del Manual de Organización y Funciones (MOF)"
+    st.caption(f"Área: {p['area']}{origen}")
+    if p.get("nota"):
+        st.info(p["nota"])
     tabs = st.tabs(["🎯 Misión", "🧰 Funciones", "🕘 Horario", "📋 Requisitos", "🦺 Seguridad"])
     with tabs[0]:
         st.markdown(p["mision"])
         st.markdown("**Tu línea de mando**")
         reporta = ", ".join(p["reporta_a"]) if p["reporta_a"] else "Dirección de la empresa"
+        if not p.get("reporta_confirmado", True):
+            reporta += " (por confirmar)"
         st.markdown(f"⬆️ **Reportas a:** {reporta}")
         st.markdown(f"🧑 **Tú:** {p['nombre']}")
         if p["le_reportan"]:
@@ -502,17 +620,119 @@ def card_ficha():
     with tabs[2]:
         render_horario(p)
     with tabs[3]:
+        hay = False
         for titulo, datos in (
             ("Requisitos generales", p["req_generales"]),
             ("Conocimientos", p["req_conocimientos"]),
             ("Experiencia", p["req_experiencia"]),
         ):
             if datos:
+                hay = True
                 st.markdown(f"**{titulo}**")
                 _lista(datos)
+        if not hay:
+            st.caption("Los requisitos de tu cargo aún no están definidos en el MOF.")
     with tabs[4]:
         st.caption("Estas responsabilidades de calidad, seguridad, salud ocupacional y medio ambiente aplican a tu puesto.")
         _lista(p["sig"])
+
+
+# ---- voz: audio natural pre-generado (Gemini) o, si no existe, la voz del propio dispositivo (gratis)
+@st.cache_data(show_spinner=False)
+def _audio_b64(ruta):
+    with open(ruta, "rb") as f:
+        return base64.b64encode(f.read()).decode()
+
+
+def _html_voz_dispositivo(texto):
+    return """
+<div style="font-family:sans-serif;display:flex;align-items:center;gap:8px">
+  <button id="p" style="padding:6px 12px;border-radius:8px;border:1px solid #bbb;background:#fff;cursor:pointer;font-size:15px">🔊 Escuchar</button>
+  <button id="s" style="padding:6px 12px;border-radius:8px;border:1px solid #bbb;background:#fff;cursor:pointer;font-size:15px">⏹ Detener</button>
+  <span id="m" style="font-size:12px;color:#666"></span>
+</div>
+<script>
+const TXT = __TEXTO__;
+const p = document.getElementById('p'), s = document.getElementById('s'), m = document.getElementById('m');
+function puntaje(v) {
+  const n = (v.name || '').toLowerCase(), l = (v.lang || '').replace('_', '-').toLowerCase();
+  if (!l.startsWith('es')) return -1;
+  let q = 0;
+  if (/natural|online|neural|premium|enhanced/.test(n)) q += 100;
+  else if (/google/.test(n)) q += 80;
+  if (v.localService === false) q += 10;
+  const pref = ['es-pe', 'es-419', 'es-mx', 'es-us', 'es-co', 'es-ar', 'es-cl', 'es-es'];
+  const i = pref.findIndex(x => l.startsWith(x));
+  return q + (i < 0 ? 0 : pref.length - i);
+}
+function mejorVoz(vs) {
+  let b = null, bp = -1;
+  for (const v of vs) { const x = puntaje(v); if (x > bp) { bp = x; b = v; } }
+  return bp >= 0 ? b : null;
+}
+function cargarVoces() {
+  return new Promise(res => {
+    const v = speechSynthesis.getVoices();
+    if (v.length) return res(v);
+    let listo = false;
+    const fin = () => { if (!listo) { listo = true; res(speechSynthesis.getVoices()); } };
+    speechSynthesis.addEventListener('voiceschanged', fin, { once: true });
+    setTimeout(fin, 1500);
+  });
+}
+if ('speechSynthesis' in window) speechSynthesis.getVoices();
+p.onclick = async () => {
+  if (!('speechSynthesis' in window)) { m.textContent = 'Tu navegador no permite voz.'; return; }
+  speechSynthesis.cancel();
+  const v = mejorVoz(await cargarVoces());
+  const partes = TXT.match(/[^.!?:;]+[.!?:;]*/g) || [TXT];
+  partes.forEach((t, i) => {
+    const u = new SpeechSynthesisUtterance(t.trim());
+    if (v) { u.voice = v; u.lang = v.lang; } else { u.lang = 'es-419'; }
+    u.rate = 0.95;
+    if (i === 0) u.onstart = () => m.textContent = 'Reproduciendo…';
+    if (i === partes.length - 1) u.onend = () => m.textContent = '';
+    speechSynthesis.speak(u);
+  });
+};
+s.onclick = () => { speechSynthesis.cancel(); m.textContent = ''; };
+window.addEventListener('pagehide', () => speechSynthesis.cancel());
+</script>
+""".replace("__TEXTO__", json.dumps(texto))
+
+
+def escuchar(clave, texto, audio_uri=None):
+    if audio_uri:  # voz natural generada para una respuesta del asistente
+        components.html(f'<audio controls preload="none" style="width:100%;height:40px" src="{audio_uri}"></audio>', height=48)
+        return
+    ruta = ruta_audio(clave) if clave else None
+    if ruta:
+        mime = "audio/mpeg" if ruta.suffix == ".mp3" else "audio/wav"
+        components.html(
+            f'<audio controls preload="none" style="width:100%;height:40px" src="data:{mime};base64,{_audio_b64(str(ruta))}"></audio>',
+            height=48,
+        )
+    else:
+        components.html(_html_voz_dispositivo(limpiar(texto)), height=48)
+
+
+def narracion_de(t, p):
+    """(clave de audio, texto) de la tarjeta. La clave lleva una huella del texto."""
+    tipo = t.get("tipo")
+    if tipo == "ficha":
+        texto = texto_ficha(p)
+        return con_hash(clave_ficha(p["nombre"]), texto), texto
+    if tipo == "marcacion":
+        texto = texto_marcacion(p.get("marcacion"))
+        return con_hash(clave_marcacion(p.get("marcacion")), texto), texto
+    if tipo == "horario":
+        gs = grupos_de(p["nombre"]) if ss.get("sede") in SEDES_HORARIO_2026 else []
+        return None, texto_horario(gs)
+    if tipo == "comite":
+        texto = texto_comite(t, COMITE)
+    else:
+        texto = texto_tarjeta(t)
+    return con_hash(clave_generica(ss.bloque, ss.card_i), texto), texto
 
 
 def vista_tarjetas():
@@ -525,8 +745,11 @@ def vista_tarjetas():
     st.caption(f"Tarjeta {ss.card_i + 1} de {total}")
     with st.container(border=True):
         tipo = t.get("tipo")
+        escuchar(*narracion_de(t, puesto_actual()))
         if tipo == "ficha":
             card_ficha()
+        elif tipo == "organigrama":
+            card_organigrama(t)
         elif tipo == "horario":
             card_horario()
         elif tipo == "marcacion":
@@ -552,6 +775,7 @@ def vista_tarjetas():
         else:
             etiqueta = "📝 Ir a mi examen" if ss.bloque == IDX_PUESTO else "🎮 ¡A la prueba!"
             st.button(etiqueta, type="primary", on_click=ir_a_preguntas)
+    st.button("🎬 Ver este bloque en presentación guiada", key="pres_bloque", on_click=iniciar_presentacion, args=([ss.bloque],))
     if not ss.repaso:
         st.button("🗺️ Salir al mapa", key="salir_mapa", on_click=volver_mapa)
 
@@ -633,6 +857,27 @@ def vista_final():
     st.button("Volver al inicio", on_click=lambda: ss.clear())
 
 
+def iniciar_presentacion(bloques):
+    ss.pres_bloques = bloques  # None = todos los bloques
+    ss.pres_resp = None
+    ss.pres_ultima = None
+    ss.etapa = "presentacion"
+
+
+def vista_presentacion():
+    cabecera()
+    st.markdown("## 🎬 Presentación guiada")
+    st.caption(f"Puesto: {ss.puesto} · Sede: {ss.sede}. Ver la presentación no suma puntos: los puntos se ganan en la prueba de cada bloque.")
+    presentador.mostrar_presentacion(
+        puesto_actual(), procesar_pregunta,
+        sede_horario=ss.sede in SEDES_HORARIO_2026, sede_comite=ss.sede in SEDES_COMITE,
+        bloques=ss.get("pres_bloques"), preguntas=asistente_activo(),
+    )
+    if not asistente_activo():
+        st.caption("El asistente todavía no está activado: por ahora no se pueden hacer preguntas.")
+    st.button("🗺️ Volver al mapa", key="pres_salir", on_click=volver_mapa)
+
+
 # --------------------------------------------------------------------------- panel RR.HH.
 def clave_admin():
     clave = os.environ.get("CLAVE_ADMIN", "")
@@ -649,7 +894,7 @@ def panel_capital_humano():
 
     with st.sidebar.expander("🔒 Panel Capital Humano"):
         st.caption("Configuración detectada (solo si existe; no se muestran los valores):")
-        for nombre in ("CLAVE_ADMIN", "HOJA_URL", "HOJA_TOKEN", "FORM_ENLACE"):
+        for nombre in ("CLAVE_ADMIN", "HOJA_URL", "HOJA_TOKEN", "FORM_ENLACE", "GEMINI_API_KEY"):
             st.caption(f"{'✅' if _secreto(nombre) else '❌'} {nombre}")
         clave = clave_admin()
         if not clave:
@@ -657,6 +902,14 @@ def panel_capital_humano():
             return
         if st.text_input("Clave", type="password", key="clave_admin") != clave:
             return
+        if st.button("🤖 Probar el asistente (Gemini)", key="probar_gemini"):
+            if not asistente_activo():
+                st.error("Falta GEMINI_API_KEY en los Secrets.")
+            else:
+                r = asistente.preguntar("¿Cuánto dura el periodo de prueba?", "Chofer de Reparto", "Chimbote", _base_conocimiento(),
+                                        _secreto("GEMINI_API_KEY"), modelo=_secreto("GEMINI_MODELO") or None,
+                                        url_base=_secreto("GEMINI_URL_BASE") or asistente.URL_GEMINI, tope_dia=10**6)
+                (st.success if r["tipo"] == "ia" else st.error)(f"Modelo: {r.get('modelo', '-')} · {r['texto'][:220]} {r.get('detalle', '')}")
         if st.button("🔌 Probar conexión con la hoja", key="probar_hoja"):
             for ok, texto in probar_conexion(_secreto("HOJA_URL"), _secreto("HOJA_TOKEN"), _secreto("FORM_ENLACE")):
                 (st.success if ok else st.error)(texto)
@@ -690,6 +943,8 @@ def main():
         vista_inicio()
     elif ss.etapa == "mapa":
         vista_mapa()
+    elif ss.etapa == "presentacion":
+        vista_presentacion()
     elif ss.etapa == "final":
         vista_final()
     else:

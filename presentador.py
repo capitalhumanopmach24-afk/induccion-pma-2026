@@ -9,30 +9,20 @@ Presentación guiada de la inducción con preguntas al asistente.
 import html
 import re
 import shutil
-import time
 from pathlib import Path
 
 import streamlit as st
 import streamlit.components.v1 as components
 
-import asistente
-import registro_preguntas
 import voz
-import voz_ia
 from bloques import BLOQUES, COMITE
-from buscador import BaseLocal
 
 RAIZ = Path(__file__).parent
 ASSETS = RAIZ / "assets"
 COMP = RAIZ / "componente_presentador"
 MEDIA = COMP / "media"
 _componente = components.declare_component("presentador_pma", path=str(COMP))
-MAX_PREGUNTAS, ESPERA_S = 8, 4
 
-
-@st.cache_resource
-def base_conocimiento():
-    return BaseLocal()
 
 
 def _media(ruta):
@@ -51,79 +41,78 @@ def _negrita(t):
     return re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", html.escape(t))
 
 
-def armar_diapositivas(puesto=None, bloques=None):
+def armar_diapositivas(puesto, sede_horario=False, sede_comite=False, bloques=None):
+    """Diapositivas = las mismas tarjetas de la app, con la misma narración (y los mismos audios pregenerados)."""
+    from organigrama import jefes_de
     out = []
     for bi, b in enumerate(BLOQUES):
         if bloques is not None and bi not in bloques:
             continue
+        n = len(b["tarjetas"])
         for ci, t in enumerate(b["tarjetas"]):
-            tipo, fotos = t.get("tipo"), []
-            puntos, clave = list(t.get("puntos", [])), voz.clave_generica(bi, ci)
-            if tipo == "horario":
-                continue  # depende del puesto y del cuadro de horarios: se ve en la app
+            tipo, fotos, clave = t.get("tipo"), [], None
+            puntos, titulo, icono = list(t.get("puntos", [])), t["titulo"], t.get("icono", "")
             if tipo == "ficha":
-                if not puesto:
-                    continue
-                texto, clave = voz.texto_ficha(puesto), voz.clave_ficha(puesto["nombre"])
-                puntos = [f"Puesto: {puesto['nombre']} · Área: {puesto['area']}"] + (
-                    ["Reportas a " + " y ".join(puesto["reporta_a"])] if puesto.get("reporta_a") else [])
+                texto = voz.texto_ficha(puesto)
+                clave = voz.con_hash(voz.clave_ficha(puesto["nombre"]), texto)
+                titulo, icono = puesto["nombre"], "🪪"
+                reporta = ", ".join(puesto["reporta_a"]) if puesto["reporta_a"] else "Dirección de la empresa"
+                puntos = [f"Área: {puesto['area']}", puesto["mision"], f"⬆️ **Reportas a:** {reporta}"]
             elif tipo == "marcacion":
-                texto, clave, puntos = voz.texto_marcacion(None), voz.clave_marcacion(None), voz.MARCACION[None]
+                texto = voz.texto_marcacion(puesto.get("marcacion"))
+                clave = voz.con_hash(voz.clave_marcacion(puesto.get("marcacion")), texto)
+                puntos = list(voz.MARCACION[puesto.get("marcacion")])
+            elif tipo == "horario":
+                from horarios import grupos_de
+                gs = grupos_de(puesto["nombre"]) if sede_horario else []
+                texto = voz.texto_horario(gs)
+                if not sede_horario:
+                    puntos = ["El cuadro de horarios 2026 es de la sede Chimbote. Confirma tu horario con Capital Humano de tu sede."]
+                for g in gs:
+                    if g["fiscalizado"]:
+                        puntos += [f"**{x['turno']}:** lunes a viernes {x['lv']}" + (f", sábado {x['sab']}" if x["sab"] else "") for x in g["turnos"]]
+                        puntos.append(g["horas"])
+                    else:
+                        puntos += ([f"**Hora de ingreso:** {g['ingreso']}"] if g.get("ingreso") else []) + [g["nota"]]
+                if not gs and sede_horario and puesto.get("horario") and not puesto.get("provisional_creada"):
+                    puntos = list(puesto["horario"])
+                titulo, icono = "Tu horario", "🕘"
             elif tipo == "comite":
                 texto = voz.texto_comite(t, COMITE)
+                clave = voz.con_hash(voz.clave_generica(bi, ci), texto)
+                if not sede_comite:
+                    puntos.append("Este es el Sub Comité de la sede Chimbote. Pregunta a Capital Humano de tu sede quién integra el comité que te corresponde.")
                 fotos = [{"src": _media(ASSETS / "comite" / m["foto"]), "n": m["nombre"], "c": m["cargo"]} for m in COMITE]
             else:
                 texto = voz.texto_tarjeta(t)
-            audio = voz.ruta_audio(voz.con_hash(clave, texto))
+                clave = voz.con_hash(voz.clave_generica(bi, ci), texto)
+                if tipo == "organigrama":
+                    jefes = jefes_de(puesto["nombre"])
+                    if jefes:
+                        puntos.append("⬆️ **Tu línea de mando:** " + " → ".join(jefes))
+            audio = voz.ruta_audio(clave) if clave else None
             img = t.get("imagen")
             out.append({
-                "bloque": f"{b['icono']} {b['titulo']}", "icono": t.get("icono", ""), "titulo": html.escape(t["titulo"]),
-                "puntos": [_negrita(p) for p in puntos], "fotos": fotos, "texto": texto,
+                "bn": bi + 1, "bt": len(BLOQUES), "cn": ci + 1, "ct": n,
+                "bloque": f"{b['icono']} {b['titulo']}", "icono": icono, "titulo": html.escape(titulo),
+                "puntos": [_negrita(p) for p in puntos], "fotos": fotos, "texto": voz.limpiar(texto),
                 "img": _media(ASSETS / "slides" / img) if img else None,
                 "audio": _media(audio) if audio else None,
             })
     return out
 
 
-def _secreto(nombre, defecto=""):
-    try:
-        return str(st.secrets.get(nombre, defecto))
-    except Exception:  # noqa: BLE001
-        return defecto
-
-
-def mostrar_presentacion(puesto=None, bloques=None, sede="Chimbote"):
-    """Dibuja el reproductor y atiende las preguntas. `puesto` es el dict de puestos.json (o None)."""
-    clave = _secreto("GEMINI_API_KEY")
-    diapos = armar_diapositivas(puesto, bloques)
+def mostrar_presentacion(puesto, procesar, sede_horario=False, sede_comite=False, bloques=None, preguntas=True):
+    """Dibuja el reproductor. `procesar(pregunta, bloque, diapositiva)` es la función de app.py que consulta a Gemini,
+    aplica los límites, genera la voz natural y guarda la pregunta en la hoja de Google; devuelve el dict de respuesta."""
+    diapos = armar_diapositivas(puesto, sede_horario, sede_comite, bloques)
     ss = st.session_state
-    ss.setdefault("pres_n", 0)
-    ss.setdefault("pres_ultimo_t", 0.0)
     ss.setdefault("pres_ultima", None)
-    valor = _componente(slides=diapos, preguntas=bool(clave), respuesta=ss.get("pres_resp"), key="presentador", default=None)
-    if not clave:
-        st.caption("Las preguntas están desactivadas: falta GEMINI_API_KEY en los Secrets.")
+    valor = _componente(slides=diapos, preguntas=bool(preguntas), respuesta=ss.get("pres_resp"), key="presentador", default=None)
     if valor and valor.get("id") != ss.pres_ultima:
         ss.pres_ultima = valor["id"]
-        nombre_puesto = puesto["nombre"] if puesto else None
-        pregunta = asistente.limpiar_pregunta(valor.get("pregunta", ""))
-        if ss.pres_n >= MAX_PREGUNTAS:
-            res = {"tipo": "limite", "texto": f"Ya hiciste {MAX_PREGUNTAS} preguntas en esta sesión. Consulta lo demás con Capital Humano.", "fuentes": []}
-        elif time.time() - ss.pres_ultimo_t < ESPERA_S:
-            res = {"tipo": "error", "texto": "Espera unos segundos antes de hacer otra pregunta.", "fuentes": []}
-        else:
-            ss.pres_n += 1
-            ss.pres_ultimo_t = time.time()
-            res = asistente.preguntar(
-                pregunta, nombre_puesto, sede, base_conocimiento(), clave, modelo=_secreto("GEMINI_MODELO") or None,
-                tope_dia=int(_secreto("PREGUNTAS_POR_DIA", "300")))
-            if res["tipo"] in ("ia", "fija") and _secreto("VOZ_RESPUESTAS", "si").lower() != "no":
-                res["audio"] = voz_ia.sintetizar(res["texto"], clave)
-            res["hablado"] = voz_ia.texto_hablado(res["texto"])
-            registro_preguntas.guardar(_secreto("HOJA_URL"), _secreto("HOJA_TOKEN"), sede, nombre_puesto,
-                                       valor.get("bloque"), valor.get("diapositiva"), pregunta, res)
-        res["id"] = valor["id"]
-        res["texto"] = re.sub(r"\*\*(.+?)\*\*", r"\1", res["texto"])
+        res = procesar(valor.get("pregunta", ""), valor.get("bloque", ""), valor.get("diapositiva", ""))
+        res = dict(res, id=valor["id"], texto=re.sub(r"\*\*(.+?)\*\*", r"\1", res["texto"]))
         ss["pres_resp"] = res
         st.rerun()
     return len(diapos)

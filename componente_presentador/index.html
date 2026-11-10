@@ -1,38 +1,44 @@
 <!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <style>
-*{box-sizing:border-box}body{margin:0;font-family:system-ui,sans-serif;color:#222;background:transparent}
-#w{max-width:900px;margin:auto;padding:2px}
-#top{display:flex;justify-content:space-between;font-size:13px;color:#666;margin-bottom:4px}
-#bar{height:6px;background:#eee;border-radius:3px;overflow:hidden;margin-bottom:10px}#bar i{display:block;height:100%;background:#C8102E;width:0;transition:width .3s}
-#card{border:1px solid #ddd;border-radius:14px;padding:18px 22px;min-height:380px;background:#fff;position:relative}
-h2{margin:0 0 10px;font-size:24px}ul{margin:0;padding-left:20px;font-size:17px;line-height:1.5}li{margin:6px 0}
-#img{max-width:100%;max-height:300px;display:block;margin:12px auto 0;border-radius:8px}
-.fotos{display:flex;flex-wrap:wrap;gap:14px;justify-content:center;margin-top:14px}
-.fotos div{text-align:center;font-size:13px;width:130px}.fotos img{width:110px;height:110px;object-fit:cover;border-radius:50%}
-#ctl{display:flex;gap:8px;justify-content:center;align-items:center;margin-top:12px;flex-wrap:wrap}
-button,select{font-size:16px;padding:9px 16px;border-radius:10px;border:1px solid #C8102E;background:#fff;color:#C8102E;cursor:pointer}
-button.p{background:#C8102E;color:#fff}button:disabled{opacity:.35;cursor:default}
-#ini{position:absolute;inset:0;background:rgba(255,255,255,.96);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;border-radius:14px;text-align:center;padding:20px}
-#ini button{font-size:20px;padding:14px 28px}
-#q{margin-top:14px;border:1px solid #ddd;border-radius:14px;padding:12px 14px;background:#fafafa}
-#q .f{display:flex;gap:8px}#q input{flex:1;font-size:16px;padding:10px;border:1px solid #bbb;border-radius:10px;min-width:0}
-#q small{display:block;color:#777;margin-top:6px;font-size:12px}
-#r{margin-top:10px;display:none;border-left:4px solid #C8102E;background:#fff;padding:10px 14px;border-radius:8px;font-size:16px;line-height:1.5;white-space:pre-wrap}
-#r small{display:block;color:#777;margin-top:6px;font-size:12px;white-space:normal}
+*{box-sizing:border-box}body{margin:0;font-family:"Source Sans Pro","Source Sans 3",system-ui,sans-serif;color:#262730;background:transparent}
+#w{padding:2px 1px}
+#bar{height:8px;background:#f0f2f6;border-radius:4px;overflow:hidden;margin-bottom:8px}#bar i{display:block;height:100%;background:#C8102E;width:0;transition:width .3s}
+#top{display:flex;justify-content:space-between;font-size:14px;color:#808495;margin-bottom:6px}
+h2{margin:6px 0 4px;font-size:28px;font-weight:700;line-height:1.2}
+#cap{font-size:14px;color:#808495;margin:6px 0 8px}
+#card{border:1px solid rgba(49,51,63,.2);border-radius:8px;padding:16px 20px;min-height:230px;background:#fff;position:relative}
+h3{margin:0 0 10px;font-size:24px;font-weight:700}ul{margin:0;padding-left:22px;font-size:16px;line-height:1.55}li{margin:8px 0}
+#img{max-width:100%;max-height:300px;display:block;margin:10px 0;border-radius:8px}
+.fotos{display:flex;flex-wrap:wrap;gap:14px;margin-top:12px}.fotos div{font-size:13px;width:46%}.fotos img{width:100%;max-height:150px;object-fit:cover;border-radius:8px}.fotos span{color:#808495;display:block}
+.row{display:flex;gap:10px;margin-top:10px}
+button,select{flex:1;font:inherit;font-size:16.5px;min-height:48px;padding:0 12px;border-radius:12px;border:1px solid rgba(49,51,63,.2);background:#fff;color:#262730;cursor:pointer}
+button.p{background:#C8102E;color:#fff;border-color:#C8102E}button:disabled{opacity:.4;cursor:default}
+#ini{position:absolute;inset:0;background:rgba(255,255,255,.97);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;border-radius:8px;text-align:center;padding:20px}
+#ini button{flex:none;width:100%;max-width:340px}
+#q{margin-top:12px;border:1px solid rgba(49,51,63,.2);border-radius:8px;padding:12px 14px}
+#q b{font-size:16px}#q .f{display:flex;gap:8px;margin-top:8px}
+#q input{flex:1;font:inherit;font-size:16px;padding:10px;border:1px solid rgba(49,51,63,.2);border-radius:8px;min-width:0}
+#q .f button{flex:none;min-height:44px}
+#qn{display:block;color:#808495;margin-top:8px;font-size:13px;line-height:1.4}
+#r{margin-top:10px;display:none;border-left:4px solid #C8102E;background:#faf9f7;padding:10px 14px;border-radius:6px;font-size:16px;line-height:1.5;white-space:pre-wrap}
+#r small{display:block;color:#808495;margin-top:6px;font-size:13px;white-space:normal}
 </style></head><body>
 <div id="w">
- <div id="top"><span id="bl"></span><span id="n"></span></div><div id="bar"><i id="pg"></i></div>
+ <div id="bar"><i id="pg"></i></div>
+ <div id="top"><span id="bl"></span><span id="n"></span></div>
+ <h2 id="bh"></h2><div id="cap"></div>
  <div id="card"><div id="cont"></div>
-  <div id="ini"><div style="font-size:22px;font-weight:600">Inducción guiada</div>
-   <div>Cada diapositiva se explica en voz alta y avanza sola. Puedes pausar, retroceder o hacer una pregunta cuando quieras.</div>
-   <button class="p" id="go">▶ Iniciar presentación</button></div></div>
- <div id="ctl"><button id="ant">⏮ Anterior</button><button id="pp" class="p">⏸ Pausar</button><button id="sig">Siguiente ⏭</button>
-  <button id="rei">↺ Reiniciar</button>
-  <select id="vel"><option value="0.9">Lenta</option><option value="1" selected>Normal</option><option value="1.15">Rápida</option></select></div>
- <div id="q"><div class="f"><input id="qi" maxlength="300" placeholder="Pregunta algo sobre esta diapositiva o la inducción…">
-  <button id="mic" title="Hablar">🎤</button><button class="p" id="qb">Preguntar</button></div>
-  <small id="qn">Al preguntar, la presentación se pausa. No escribas datos personales: las preguntas y respuestas se guardan para mejorar la inducción.</small>
-  <div id="r"></div><div style="text-align:center;margin-top:8px"><button id="seg" class="p" style="display:none">▶ Seguir con la presentación</button></div></div>
+  <div id="ini"><h3 style="margin:0">🎬 Presentación guiada</h3>
+   <div>Cada tarjeta se explica en voz alta y avanza sola. Puedes pausar, retroceder o hacer una pregunta cuando quieras.</div>
+   <button class="p" id="go">▶️ Iniciar presentación</button></div></div>
+ <div class="row"><button id="ant">⬅️ Anterior</button><button id="pp" class="p">⏸ Pausar</button><button id="sig">Siguiente ➡️</button></div>
+ <div class="row"><button id="rei">🔁 Reiniciar</button>
+  <select id="vel" aria-label="Velocidad de la voz"><option value="0.9">Voz lenta</option><option value="1" selected>Voz normal</option><option value="1.15">Voz rápida</option></select></div>
+ <div id="q"><b>💬 ¿Tienes una duda? Pregúntale a PMA</b>
+  <div class="f"><input id="qi" maxlength="300" placeholder="Ej.: ¿Cuántos días tengo para justificar una falta?">
+  <button id="mic" aria-label="Hablar">🎤</button><button class="p" id="qb">Preguntar</button></div>
+  <small id="qn">Al preguntar, la presentación se pausa. <b>No escribas datos personales ni cuentes casos personales:</b> esta herramienta no es confidencial. Las preguntas y respuestas se guardan para mejorar la inducción. Las respuestas son orientativas; ante cualquier duda consulta con Capital Humano.</small>
+  <div id="r"></div><div class="row"><button id="seg" class="p" style="display:none">▶️ Seguir con la presentación</button></div></div>
 </div>
 <audio id="au"></audio>
 <script>
@@ -41,30 +47,34 @@ const $=id=>document.getElementById(id),au=$('au');
 function env(type,d){parent.postMessage(Object.assign({isStreamlitMessage:true,type:type},d||{}),'*')}
 function altura(){env('streamlit:setFrameHeight',{height:document.documentElement.scrollHeight+12})}
 function valor(v){env('streamlit:setComponentValue',{value:v,dataType:'json'})}
-function render(){const s=S[i];let h=`<h2>${s.icono} ${s.titulo}</h2>`;
+function render(){const s=S[i];let h=`<h3>${s.icono} ${s.titulo}</h3>`;
  if(s.puntos.length)h+='<ul>'+s.puntos.map(p=>`<li>${p}</li>`).join('')+'</ul>';
  if(s.img)h+=`<img id="img" src="${s.img}">`;
- if(s.fotos.length)h+='<div class="fotos">'+s.fotos.map(f=>`<div><img src="${f.src}"><b>${f.n}</b><br>${f.c}</div>`).join('')+'</div>';
- $('cont').innerHTML=h;$('bl').textContent=s.bloque;$('n').textContent=`${i+1} / ${S.length}`;
- $('pg').style.width=((i+1)/S.length*100)+'%';$('ant').disabled=i==0;$('sig').disabled=i==S.length-1;
- $('pp').textContent=play?'⏸ Pausar':'▶ Continuar';setTimeout(altura,60)}
+ if(s.fotos.length)h+='<div class="fotos">'+s.fotos.map(f=>`<div><img src="${f.src}"><b>${f.n}</b><span>${f.c}</span></div>`).join('')+'</div>';
+ $('cont').innerHTML=h;$('bh').textContent=s.bloque;$('bl').textContent=`Bloque ${s.bn} de ${s.bt}`;$('cap').textContent=`Tarjeta ${s.cn} de ${s.ct}`;
+ $('n').textContent=`${i+1} / ${S.length}`;$('pg').style.width=((i+1)/S.length*100)+'%';
+ $('ant').disabled=i==0;$('sig').disabled=i==S.length-1;$('pp').textContent=play?'⏸ Pausar':'▶️ Continuar';setTimeout(altura,60)}
 function parar(){tok++;clearTimeout(tm);clearTimeout(tm2);au.pause();au.onended=null;try{speechSynthesis.cancel()}catch(e){}}
-function vozNav(){const v=speechSynthesis.getVoices().filter(x=>/^es/i.test(x.lang));
- for(const k of ['es-PE','es-MX','es-US','es-419','es-CO','es-AR'])for(const x of v)if(x.lang.replace('_','-')==k)return x;return v[0]||null}
-function hablar(audio,texto,alTerminar){parar();const t=++tok,vel=parseFloat($('vel').value);
+function puntaje(v){const n=(v.name||'').toLowerCase(),l=(v.lang||'').replace('_','-').toLowerCase();if(!l.startsWith('es'))return -1;let q=0;
+ if(/natural|online|neural|premium|enhanced/.test(n))q+=100;else if(/google/.test(n))q+=80;if(v.localService===false)q+=10;
+ const pref=['es-pe','es-419','es-mx','es-us','es-co','es-ar','es-cl','es-es'];const k=pref.findIndex(x=>l.startsWith(x));return q+(k<0?0:pref.length-k)}
+function mejorVoz(vs){let b=null,bp=-1;for(const v of vs){const x=puntaje(v);if(x>bp){bp=x;b=v}}return bp>=0?b:null}
+function cargarVoces(){return new Promise(res=>{const v=speechSynthesis.getVoices();if(v.length)return res(v);let ok=false;
+ const f=()=>{if(!ok){ok=true;res(speechSynthesis.getVoices())}};speechSynthesis.addEventListener('voiceschanged',f,{once:true});setTimeout(f,1500)})}
+async function hablar(audio,texto,alTerminar){parar();const t=++tok,vel=parseFloat($('vel').value);
  const fin=()=>{if(t!=tok)return;clearTimeout(tm);clearTimeout(tm2);tm2=setTimeout(()=>{if(t==tok)alTerminar()},1500)};
- const seguro=ms=>{clearTimeout(tm);tm=setTimeout(fin,ms)};
- const estim=Math.max(6000,texto.length*75/vel);
+ const seguro=ms=>{clearTimeout(tm);tm=setTimeout(fin,ms)};const estim=Math.max(6000,texto.length*75/vel);
  if(audio){au.src=audio;au.playbackRate=vel;au.onended=fin;au.play().catch(()=>seguro(6000));seguro(120000);return}
- if('speechSynthesis' in window&&texto){const u=new SpeechSynthesisUtterance(texto);u.lang='es-PE';u.rate=vel;
-  const v=vozNav();if(v){u.voice=v;u.lang=v.lang}u.onend=fin;u.onerror=()=>seguro(estim);speechSynthesis.speak(u);seguro(estim+20000);return}
+ if('speechSynthesis' in window&&texto){const v=mejorVoz(await cargarVoces());if(t!=tok)return;
+  const partes=texto.match(/[^.!?:;]+[.!?:;]*/g)||[texto];
+  partes.forEach((p,k)=>{const u=new SpeechSynthesisUtterance(p.trim());if(v){u.voice=v;u.lang=v.lang}else u.lang='es-419';u.rate=.95*vel;
+   if(k==partes.length-1){u.onend=fin;u.onerror=()=>seguro(estim)}speechSynthesis.speak(u)});seguro(estim+20000);return}
  seguro(estim)}
 function narrar(){hablar(S[i].audio,S[i].texto,()=>{if(play)avanzar()})}
-function avanzar(){if(i<S.length-1){i++;render();narrar()}else{play=false;parar();$('pp').textContent='✔ Terminó'}}
+function avanzar(){if(i<S.length-1){i++;render();narrar()}else{play=false;parar();$('pp').textContent='✅ Terminó'}}
 function ir(n){i=Math.max(0,Math.min(S.length-1,n));$('r').style.display='none';$('seg').style.display='none';render();if(play)narrar();else parar()}
 $('go').onclick=()=>{$('ini').style.display='none';play=true;render();narrar()};
-$('pp').onclick=()=>{if(!play&&$('pp').textContent.startsWith('✔')){i=0;render()}
- play=!play;render();play?narrar():parar()};
+$('pp').onclick=()=>{if(!play&&$('pp').textContent.startsWith('✅')){i=0;render()}play=!play;render();play?narrar():parar()};
 $('ant').onclick=()=>ir(i-1);$('sig').onclick=()=>ir(i+1);
 $('rei').onclick=()=>{play=true;$('ini').style.display='none';ir(0)};$('vel').onchange=()=>{if(play)narrar()};
 function preguntar(){const q=$('qi').value.trim();if(q.length<4||pend||!habil)return;
@@ -72,11 +82,10 @@ function preguntar(){const q=$('qi').value.trim();if(q.length<4||pend||!habil)re
  $('r').style.display='block';$('r').textContent='Pensando…';setTimeout(altura,60);
  valor({id:Date.now()+'-'+Math.random(),pregunta:q,diapositiva:S[i].titulo,bloque:S[i].bloque});$('qi').value=''}
 $('qb').onclick=preguntar;$('qi').onkeydown=e=>{e.stopPropagation();if(e.key=='Enter')preguntar()};
-function mostrar(r){pend=false;$('qb').disabled=false;$('r').style.display='block';
- $('r').innerHTML='';const p=document.createElement('div');p.textContent=r.texto;$('r').appendChild(p);
- if(r.fuentes&&r.fuentes.length){const f=document.createElement('small');f.textContent='Fuentes: '+r.fuentes.join(' · ');$('r').appendChild(f)}
- $('seg').style.display='inline-block';setTimeout(altura,60);
- hablar(r.audio,r.hablado||r.texto,()=>{})}
+function mostrar(r){pend=false;$('qb').disabled=false;$('r').style.display='block';$('r').innerHTML='';
+ const p=document.createElement('div');p.textContent=r.texto;$('r').appendChild(p);
+ if(r.fuentes&&r.fuentes.length){const f=document.createElement('small');f.textContent='Basado en: '+r.fuentes.join(' · ');$('r').appendChild(f)}
+ $('seg').style.display='inline-block';setTimeout(altura,60);hablar(r.audio,r.hablado||r.texto,()=>{})}
 $('seg').onclick=()=>{parar();$('r').style.display='none';$('seg').style.display='none';play=true;$('ini').style.display='none';render();narrar()};
 const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
 if(SR){$('mic').onclick=()=>{parar();const r=new SR();r.lang='es-PE';r.onresult=e=>{$('qi').value=e.results[0][0].transcript;preguntar()};r.start()}}else $('mic').style.display='none';
@@ -85,7 +94,6 @@ window.addEventListener('message',e=>{const d=e.data;if(!d||d.type!=='streamlit:
  const sg=(a.slides||[]).map(x=>x.titulo).join('|');
  if(a.slides&&sg!==sigS){sigS=sg;S=a.slides;i=0;play=false;render()}
  habil=!!a.preguntas;$('q').style.display=a.preguntas?'block':'none';
- if(a.respuesta&&a.respuesta.id!==ultResp){ultResp=a.respuesta.id;mostrar(a.respuesta)}
- setTimeout(altura,60)});
+ if(a.respuesta&&a.respuesta.id!==ultResp){ultResp=a.respuesta.id;mostrar(a.respuesta)}setTimeout(altura,60)});
 env('streamlit:componentReady',{apiVersion:1});
 </script></body></html>
